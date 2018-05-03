@@ -1,5 +1,5 @@
 {
-  "name": "shellscripts",
+  "name": "nairo",
   "version": "0.0.1",
   "description": "Shell script helper",
   "main": "index.js",

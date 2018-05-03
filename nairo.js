@@ -78,6 +78,14 @@ let setupVagrant = ({ dir, ip }) => {
     })
 }
 
+let makeProjectDirectoryCmd = ({ dir }) => {
+    if (dir === undefined) {
+        return Left(new Error('When setting up the directory cannot be undefined'));
+    }
+
+    return Right(`mkdir -p ${dir}`);
+}
+
 let launchVagrant = ({ dir }) => {
     if (dir === undefined) {
         return Left(new Error('When launching Vagrant the directory cannot be undefined'));
@@ -94,13 +102,46 @@ let copyEnvironmentFileCmd = ({ dir, sampleEnvFile = '.env.example', envFile = '
     return Right(`cp ${dir}/${sampleEnvFile} ${dir}/${envFile}`);
 }
 
+let tarWPUploadsCmd = ({ projectFolder }) => {
+
+    if (projectFolder === undefined) {
+        return Left(new Error('You must define the projectFolder'));
+    }
+
+    return Right(`tar -czvf ~/${projectFolder}.temp.tar.gz /var/www/vhosts/${projectFolder}/public/wp-content/uploads`);
+}
+
+let remoteSSH = ({ privateKeyPath, hostname, username = 'centos', command }) => {
+    if (command === undefined) {
+        return Left(new Error('ssh command must be defined'));
+    }
+
+    if (hostname === undefined) {
+        return Left(new Error('ssh hostname must be set'));
+    }
+
+    return Right(`ssh ${privateKeyPath ? `-i ${privateKeyPath}` : ''} ${username}@${hostname} "${command}"`)
+}
+
+let downloadWPFile = ({ privateKeyPath, hostname, projectFolder, username = 'centos' }) => {
+    if (hostname === undefined) {
+        return Left(new Error('ssh hostname must be set'));
+    }
+
+    if (projectFolder === undefined) {
+        return Left(new Error('You must define the projectFolder'));
+    }
+
+    return Right(`scp ${privateKeyPath ? `-i ${privateKeyPath}` : ''} ${username}@${hostname}:~/${projectFolder}.temp.tar.gz ./`)
+}
+
 shell.echo('GO NAIRO!');
 
 program
     .version('0.0.1', '-v, --version');
 
 program
-    .command('setup')
+    .command('launch:wordpress-starter')
     .option('-b, --branch <branch>', 'Git branch')
     .option('-r, --repo <repo>', 'Git repository you want to clone')
     .option('-d, --dir <dir>', 'Project directory')
@@ -125,6 +166,9 @@ program
     .command('setup:vagrantfile')
     .option('-d, --dir <dir>', 'Project directory')
     .action((cmd) => {
+        makeProjectDirectoryCmd({ dir: cmd.dir })
+            .cata(stopShell, executeShell);
+
         setupVagrant({ dir: cmd.dir })
             .cata(stopShell, writeFile);
     });
@@ -143,6 +187,20 @@ program
     .action((cmd) => {
         copyEnvironmentFileCmd({ dir: cmd.dir })
             .cata(stopShell, executeShell);
-    })
+    });
+
+program
+    .command('grab:images')
+    .option('-p, --project-folder <projectFolder>', 'Project folder name')
+    .option('-k, --key-path <keyPath>', 'Private key path')
+    .option('-h, --host <host>', 'Host name')
+    .action((cmd) => {
+        tarWPUploadsCmd({ projectFolder: cmd.projectFolder })
+            .flatMap(command => remoteSSH({ privateKeyPath: cmd.keyPath, hostname: cmd.host, command }))
+            .cata(stopShell, executeShell);
+
+        downloadWPFile({ projectFolder: cmd.projectFolder, privateKeyPath: cmd.keyPath, hostname: cmd.host })
+            .cata(stopShell, executeShell);
+    });
 
 program.parse(process.argv);

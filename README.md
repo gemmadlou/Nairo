@@ -15,13 +15,19 @@ It's still undergoing progress. I'm also applying functional programming princip
 #### Setup Wordpress Composer starter with Vagrant and yarn
 
 ```
-nairo setup:wordpress-starter -r GIT_REPOSITORY -d PROJECT_FOLDER
+nairo launch:wordpress-starter -r GIT_REPOSITORY -d PROJECT_FOLDER
 ```
 
 Example
 
 ```
-nairo setup:wordpress-starter -r git@github.com:gemmadlou/WordPress-Composer-Starter.git -d PROJECT_FOLDER
+nairo launch:wordpress-starter -r git@github.com:gemmadlou/WordPress-Composer-Starter.git -d newproject
+```
+
+#### Grab images from remote host (staging)
+
+```
+nairo grab:images -h HOSTNAME_OR_IP  -p FOLDERNAME_ON_REMOTE -k PATH_TO_PRIVATE_KEY (optional)
 ```
 
 ## FAQs
