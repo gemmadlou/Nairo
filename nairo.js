@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
+let fs = require('fs');
+let { resolve } = require('path');
 let shell = require('shelljs');
 let program = require('commander');
 let { Maybe, Either, Right, Left } = require('monet');
-
-
 
 let clone = ({repo, dir}) => {
     if (repo === undefined) {
@@ -33,10 +33,15 @@ let stopShell = (error) => {
 }
 
 let executeShell = (command) => {
-    let execution = shell.exec(command)
-    if (execution.code !== 0) {
-        stopShell(execution.stderr)
+    let { stdout, stderr, code } = shell.exec(command)
+    shell.echo(stdout);
+    if (code !== 0) {
+        stopShell(stderr)
     }
+}
+
+let writeFile = ({ path, content, encoding = 'utf8'}) => {
+    return fs.writeFileSync(path, content, { encoding })
 }
 
 let installNodeModules = ({ dir }) => {
@@ -45,6 +50,48 @@ let installNodeModules = ({ dir }) => {
     }
 
     return Right(`cd ${dir} && yarn install`);
+}
+
+let vagrantConfig = (ip = '192.168.33.22') => `
+    # -*- mode: ruby -*-
+    # vi: set ft=ruby :
+    Vagrant.configure("2") do |config|
+        config.vm.box = "scotch/box"
+        config.vm.network "private_network", ip: "${ip}"
+        config.vm.hostname = "scotchbox"
+        
+        # Optional NFS. Make sure to remove other synced_folder line too
+        config.vm.synced_folder ".", "/var/www", :nfs => { :mount_options => ["dmode=777","fmode=666"] }
+    end 
+`;
+
+let setupVagrant = ({ dir, ip }) => {
+    if (dir === undefined) {
+        return Left(new Error('When setting up the directory cannot be undefined'));
+    }
+
+    let content = vagrantConfig(ip);
+    
+    return Right({
+        path: resolve(dir) + '/Vagrantfile',
+        content
+    })
+}
+
+let launchVagrant = ({ dir }) => {
+    if (dir === undefined) {
+        return Left(new Error('When launching Vagrant the directory cannot be undefined'));
+    }
+
+    return Right(`cd ${dir} && vagrant up && cat Vagrantfile`);
+}
+
+let copyEnvironmentFileCmd = ({ dir, sampleEnvFile = '.env.example', envFile = '.env' }) => {
+    if (dir === undefined) {
+        return Left(new Error('When copying the environment file, the project directory cannot be undefined'));
+    }
+
+    return Right(`cp ${dir}/${sampleEnvFile} ${dir}/${envFile}`);
 }
 
 shell.echo('GO NAIRO!');
@@ -58,13 +105,43 @@ program
     .option('-r, --repo <repo>', 'Git repository you want to clone')
     .option('-d, --dir <dir>', 'Project directory')
     .action((cmd) => {
-        clone({ repo: cmd.repo, branch: cmd.branch, dir: cmd.dir })
+        clone({ repo: cmd.repo, dir: cmd.dir })
             .cata(stopShell, executeShell);
 
         installComposer({ dir: cmd.dir })
             .cata(stopShell, executeShell);
 
         installNodeModules({ dir: cmd.dir })
+            .cata(stopShell, executeShell);
+
+        copyEnvironmentFileCmd({ dir: cmd.dir })
+            .cata(stopShell, executeShell);
+
+        launchVagrant({ dir: cmd.dir })
+            .cata(stopShell, executeShell);
+    });
+
+program
+    .command('setup:vagrantfile')
+    .option('-d, --dir <dir>', 'Project directory')
+    .action((cmd) => {
+        setupVagrant({ dir: cmd.dir })
+            .cata(stopShell, writeFile);
+    });
+
+program
+    .command('launch:vagrant')
+    .option('-d, --dir <dir>', 'Project directory')
+    .action((cmd) => {
+        launchVagrant({ dir: cmd.dir })
+            .cata(stopShell, executeShell);
+    });
+
+program
+    .command('setup:envfile')
+    .option('-d, --dir <dir>', 'Project directory')
+    .action((cmd) => {
+        copyEnvironmentFileCmd({ dir: cmd.dir })
             .cata(stopShell, executeShell);
     })
 
