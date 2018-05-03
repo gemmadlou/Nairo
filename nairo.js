@@ -111,6 +111,14 @@ let tarWPUploadsCmd = ({ projectFolder }) => {
     return Right(`tar -czvf ~/${projectFolder}.temp.tar.gz /var/www/vhosts/${projectFolder}/public/wp-content/uploads`);
 }
 
+let cleanUpZipFile = ({ projectFolder }) => {
+    if (projectFolder === undefined) {
+        return Left(new Error('You must define the projectFolder'));
+    }
+
+    return Right(`rm ~/${projectFolder}.temp.tar.gz`);
+}
+
 let remoteSSH = ({ privateKeyPath, hostname, username = 'centos', command }) => {
     if (command === undefined) {
         return Left(new Error('ssh command must be defined'));
@@ -201,6 +209,12 @@ program
 
         downloadWPFile({ projectFolder: cmd.projectFolder, privateKeyPath: cmd.keyPath, hostname: cmd.host })
             .cata(stopShell, executeShell);
+
+        cleanUpZipFile({ projectFolder: cmd.projectFolder })
+            .flatMap(command => remoteSSH({ privateKeyPath: cmd.keyPath, hostname: cmd.host, command }))
+            .cata(stopShell, executeShell);
+
+        console.log('Your uploads folder tar.gz has downloaded');
     });
 
 program.parse(process.argv);
