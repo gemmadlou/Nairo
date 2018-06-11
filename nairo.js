@@ -108,7 +108,7 @@ let tarWPUploadsCmd = ({ projectFolder }) => {
         return Left(new Error('You must define the projectFolder'));
     }
 
-    return Right(`tar -czvf ~/${projectFolder}.temp.tar.gz /var/www/vhosts/${projectFolder}/public/wp-content/uploads`);
+    return Right(`cd /var/www/vhosts/${projectFolder}/public/wp-content && tar -czvf ~/${projectFolder}.temp.tar.gz uploads`);
 }
 
 let cleanUpZipFile = ({ projectFolder }) => {
